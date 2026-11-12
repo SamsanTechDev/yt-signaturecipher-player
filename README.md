@@ -23,7 +23,7 @@ and a local page that plays it.
 
 ## 2. Paste it
 
-Open **`cipher.txt`**, delete the comment lines, paste the cipher on one line,
+Open **`cipher.txt`**, replace the placeholder line with the cipher (one line),
 and save.
 
 > `cipher.txt` is not in the repository (it holds your personal signed URL). If
@@ -119,7 +119,6 @@ Either way the result is proven with a real request before you see a link.
 | `build-play.js` | Generates `play.html` |
 | `live.html` | Live progress page (`/live`) |
 | `HOW-IT-WORKS.md` | Full technical walkthrough |
-| `mindmap.html` | One-page diagram of the flow |
 
 ## Troubleshooting
 
@@ -127,7 +126,7 @@ Either way the result is proven with a real request before you see a link.
 | --- | --- |
 | `403` on a fresh cipher | Run again: the build hash is checked and a new player is downloaded only if YouTube changed it |
 | Video will not play in the page | Use the local page (`http://127.0.0.1:8766/`), not the raw link |
-| `No usable signatureCipher` | Put the cipher on one line and delete the `#` comment lines |
+| `No usable signatureCipher` | Put the cipher on one line and replace the placeholder |
 | No `signatureCipher` in DevTools | That stream is not scrambled by YouTube |
 
 ## Disclaimer

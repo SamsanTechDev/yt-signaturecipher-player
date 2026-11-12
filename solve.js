@@ -236,8 +236,8 @@ async function cmdForget() {
   const goodUrl = /^https?:\/\/[^/]+\//.test(probeQ.get('url') || '');
   if (!goodS || !goodUrl) {
     console.error(`No usable signatureCipher in ${file}.`);
-    console.error('Delete the # comment lines, then paste the whole "signatureCipher"');
-    console.error('value on one line. It starts with  s=  and contains');
+    console.error('Paste the whole "signatureCipher" value on one line, replacing');
+    console.error('the placeholder. It starts with  s=  and contains');
     console.error('&url=https%3A%2F%2F...googlevideo.com...');
     process.exit(1);
   }
