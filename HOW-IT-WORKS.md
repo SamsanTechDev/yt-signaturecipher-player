@@ -167,6 +167,35 @@ function playerSig(rawS, file = BASE) {
 }
 ```
 
+**But it does not start there.** Transcribing the chain above is one way to read
+the player; calling the builder itself is another, and it cannot drift.
+
+#### The shortcut that runs first: `.set("alr","yes")` (`engine/alr.js`)
+
+The function above exists in every build — only its name and the helpers it
+calls change. So instead of matching `rk`/`Gh` by shape, the solver looks for
+the **marker** `set("alr","yes")` in the source, names the function that
+contains it, and then drives that function:
+
+```js
+const url = builder(probeUrl, "s", encodeURIComponent(rawS));
+url.set("n", rawN);      // this setter runs the player's n transform
+url.get("s");            // <- the solved signature
+```
+
+This is YouTube's own code path, not our reading of it, so a rename or a new
+opcode cannot break it. Every marker hit is still **verified** behaviourally
+(some belong to a getter, a redirect builder, or an async class method), and the
+result is just tier `0.25` in the search: one probe decides whether it was
+right. If the marker disappears, `discover()` returns `null` and the chain
+reading below carries on unchanged.
+
+Measured on build `a5c2aafe`: builder `Bs`, serializer `Ue`, and the current
+cipher solved on the **first probe**.
+
+The rest of this section is the fallback — how the same transform is recovered
+when the builder cannot be used.
+
 **What those two functions really are.** They are dispatchers. The pair of
 numbers is not a payload — it selects a code path and obfuscates the indexes:
 

@@ -23,6 +23,10 @@ function fail(name, extra) {
   failed++;
   console.log('  FAIL  ' + name + (extra ? '   ' + extra : ''));
 }
+function info(name, extra) {
+  console.log('  INFO  ' + name + (extra ? '   ' + extra : ''));
+}
+
 function check(name, ok, extra) { ok ? pass(name, extra) : fail(name, extra); }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +69,18 @@ if (!fs.existsSync(base) || fs.statSync(base).size < 500 * 1024) {
   const found = sites.findSigSites(src);
   check('sig chain found in base.js', found.length > 0,
     found.length ? sites.describeChain(found[0].chain) : 'no site matched');
+
+  // The "alr=yes" builder is an accelerator, not a dependency: when YouTube
+  // removes the marker the normal search still runs, so this is INFO.
+  try {
+    const alrMod = require('../engine/alr.js');
+    const player = require('../engine/player.js').load(base, { quick: true });
+    const alr = alrMod.discover(player);
+    if (alr) info('alr builder found', alr.name + ' via .set("alr","yes"), serializer ' + alr.serializer);
+    else info('alr builder not found', 'marker or URL object changed - search still works');
+  } catch (e) {
+    info('alr builder check skipped', e.message);
+  }
 }
 
 // ---------------------------------------------------------------------------

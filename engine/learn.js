@@ -26,6 +26,7 @@ const synth = require('./synth.js');
 const ntuples = require('./n-tuples.js');
 const oracle = require('./oracle.js');
 const sites = require('./sites.js');
+const alrMod = require('./alr.js');
 // (no external parser: this engine is self-contained)
 
 const MAX_SIG_TRIES = Number(process.env.YT_MAX_SIG_TRIES || 160);
@@ -55,7 +56,7 @@ function recall(build) {
 // 3. plan - every entry is { tier, label, shape } with a REPLAYABLE shape
 // ---------------------------------------------------------------------------
 
-function planSig(d, recalled) {
+function planSig(d, recalled, alr) {
   const out = [];
   const seen = new Set();
 
@@ -69,6 +70,14 @@ function planSig(d, recalled) {
   if (recalled && recalled.entry.recipe && recalled.entry.recipe.sig) {
     push(0, 'learned-sig', recalled.entry.recipe.sig);
   }
+
+  // tier 0.25 - the player's own URL builder (engine/alr.js).
+  //
+  // Everything below is a *reading* of the player. This is not: it is the
+  // builder YouTube itself calls, handed the cipher and asked for a URL. It
+  // cannot break on a rename or a new opcode, only on the marker disappearing.
+  // One probe decides whether it was right, so it goes before the chains.
+  if (alr) push(0.25, 'alr:' + alr.name, { kind: 'alr', builder: alr.name });
 
   // tier 0.5 - READ from the player, not guessed.
   //
@@ -176,7 +185,7 @@ function buildUrl(baseUrl, sp, sig, n) {
 // ---------------------------------------------------------------------------
 
 async function search(ctx) {
-  const { d, rawS, sp, baseUrl, rawN, opts } = ctx;
+  const { d, rawS, sp, baseUrl, rawN, opts, alr } = ctx;
   const trace = [];
   let probes = 0;
   // Progress sink so a UI can narrate the search live. Never throws.
@@ -191,8 +200,9 @@ async function search(ctx) {
 
   // Experience keys on structure, not the class name: two differently
   // named URL classes are the same solution, so a win teaches both.
-  const nKey = (t) => 'n:' + (t.cls === null ? 'unchanged'
-    : 'get/' + JSON.stringify(t.arg) + '/ctor' + t.ctorArgs);
+  const nKey = (t) => t.alr ? 'n:alr'
+    : 'n:' + (t.cls === null ? 'unchanged'
+      : 'get/' + JSON.stringify(t.arg) + '/ctor' + t.ctorArgs);
   const allTuples = ntuples.buildNTuples(d.urlClasses, rawN);
   // Prune before spending a probe on each:
   //   * a class that throws, or hands back the same n, cannot be the solver -
@@ -242,7 +252,17 @@ async function search(ctx) {
     const sorted = nOrder.map((l) => nByLabel.get(l)).filter(Boolean);
     if (sorted.length === tuples.length) tuples.splice(0, tuples.length, ...sorted);
   }
-  const planned = planSig(d, ctx.recalled);
+  // The alr builder solves `n` inside `set`, so its answer is a candidate like
+  // any other - except it is the player's own and costs no extra probe. Only
+  // offered when it actually changes the value (some inputs need no transform).
+  let alrN = null;
+  if (alr) {
+    try { alrN = alr.n(rawN); } catch (e) { alrN = null; }
+    if (alrN === rawN || !/^[A-Za-z0-9_-]{8,}$/.test(String(alrN || ''))) alrN = null;
+    if (alrN) tuples.unshift({ alr: true, note: 'alr-builder' });
+  }
+
+  const planned = planSig(d, ctx.recalled, alr);
 
   // Render each planned shape once, dropping duplicates and unrenderables.
   const rendered = [];
@@ -254,17 +274,17 @@ async function search(ctx) {
     seenSig.add(sig);
     rendered.push({ tier: cand.tier, label: cand.label, shape: cand.shape, sig });
   }
-  // Re-order by track record. The learned recipe always stays first; everything
-  // else is sorted by how often it has actually won, so a candidate that works
-  // on this kind of build is tried before one that never has.
-  const learnedFirst = rendered.filter((c) => c.tier === 0);
-  const rest = rendered.filter((c) => c.tier !== 0);
+  // Re-order by track record, except the two candidates that must stay in
+  // front: the learned recipe and the player's own builder. Everything else is
+  // sorted by how often it has actually won.
+  const pinned = rendered.filter((c) => c.tier === 0 || c.tier === 0.25);
+  const rest = rendered.filter((c) => c.tier !== 0 && c.tier !== 0.25);
   if (rest.length > 1) {
     const order = store.rankCandidates(rest.map((c) => c.label));
     const byLabel = new Map(rest.map((c) => [c.label, c]));
     const reordered = order.map((l) => byLabel.get(l)).filter(Boolean);
     rendered.length = 0;
-    rendered.push(...learnedFirst, ...reordered);
+    rendered.push(...pinned, ...reordered);
     if (order.some((l, i) => l !== rest[i].label)) trace.push('  reordered by experience');
   }
 
@@ -289,7 +309,9 @@ async function search(ctx) {
       : tuples;
     for (const t of replayTuples) {
       let n = rawN;
-      if (t.cls) {
+      if (t.alr) {
+        n = alrN || rawN;
+      } else if (t.cls) {
         try { n = ntuples.applyNTuple(t, d.player.classesByName, urlWithSig(baseUrl, sp, learned.sig)) || rawN; } catch (e) { continue; }
       }
       const url = buildUrl(baseUrl, sp, learned.sig, n);
@@ -317,7 +339,9 @@ async function search(ctx) {
   for (const cand of rendered.filter((c) => c.tier !== 0)) {
     for (const t of tuples) {
       let n = rawN;
-      if (t.cls) {
+      if (t.alr) {
+        n = alrN || rawN;
+      } else if (t.cls) {
         try { n = ntuples.applyNTuple(t, d.player.classesByName, urlWithSig(baseUrl, sp, cand.sig)); } catch (e) { continue; }
         if (!n) n = rawN;
       }
@@ -368,7 +392,16 @@ async function solveAuto(cipher, opts = {}) {
   let d = quick;
   if (!recalled || opts.force) d = discover(file);
 
-  const result = await search({ d, rawS, sp, baseUrl, rawN, recalled, opts, onEvent: opts.onEvent });
+  // The "alr=yes" builder (engine/alr.js) is cheap to find - one regex pass
+  // plus a couple of calls - so it is available even on the fast path. When it
+  // is missing, every other tier still runs: this is an accelerator, not a
+  // dependency.
+  let alr = null;
+  if (opts.alr !== false) {
+    try { alr = alrMod.discover(d.player); } catch (e) { alr = null; }
+  }
+
+  const result = await search({ d, rawS, sp, baseUrl, rawN, recalled, opts, alr, onEvent: opts.onEvent });
 
   store.appendHistory({
     kind: result.ok ? 'solved' : 'failed',
@@ -390,7 +423,7 @@ async function solveAuto(cipher, opts = {}) {
     });
   }
 
-  return { ...result, build, recalled, discover: d };
+  return { ...result, build, recalled, discover: d, alr };
 }
 
 module.exports = { solveAuto, search, discover, planSig, recall, buildUrl, urlWithSig };

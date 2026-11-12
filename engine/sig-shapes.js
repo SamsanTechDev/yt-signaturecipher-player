@@ -17,6 +17,7 @@
 'use strict';
 
 const { applyOps, staticSig } = require('./static-seeds.js');
+const alr = require('./alr.js');
 
 // ---------------------------------------------------------------------------
 // builtin families we have actually observed shipping
@@ -141,6 +142,17 @@ function compile(shape, resolve, memo = {}) {
       };
     }
 
+    case 'alr': {
+      // The player's own URL builder (engine/alr.js). It takes the cipher, not
+      // a helper name, so a renamed build still replays this recipe.
+      const builder = resolve(shape.builder);
+      return (s) => {
+        const out = alr.sigVia(builder, String(s));
+        if (out == null) throw new Error('alr builder produced no signature');
+        return out;
+      };
+    }
+
     default:
       throw new Error(`unknown shape kind ${shape.kind}`);
   }
@@ -157,6 +169,7 @@ function describe(shape) {
     case 'static2': return 'static2[outer(inner)]';
     case 'alias': return `alias(${shape.of})`;
     case 'site': return 'site:' + shape.steps.map((st) => `${st.fn}(${st.a},${st.b})`).join('>');
+    case 'alr': return 'alr:' + shape.builder;
     case 'ast': return 'ast(parsed-player)';
     default: return JSON.stringify(shape);
   }

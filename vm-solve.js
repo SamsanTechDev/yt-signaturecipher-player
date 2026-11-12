@@ -424,6 +424,8 @@ async function solveSmart(cipher, opts = {}) {
         structure: res.build.structure,
         urlClass: (res.discover.urlClasses[0] || {}).name || null,
         transform: (res.discover.transformHelpers[0] || {}).name || null,
+        // The player's own URL builder, when this build exposes the alr marker.
+        alr: res.alr ? res.alr.name : null,
       },
     },
   };

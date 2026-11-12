@@ -78,8 +78,12 @@ async function cmdStatus() {
     return;
   }
   for (const e of s.entries) {
-    const sig = e.recipe.sig ? (e.recipe.sig.helper || e.recipe.sig.kind) : '?';
-    const n = e.recipe.n && e.recipe.n.cls ? `${e.recipe.n.cls}.${e.recipe.n.method}(${e.recipe.n.arg})` : 'none';
+    const sig = e.recipe.sig
+      ? (e.recipe.sig.kind === 'alr' ? 'alr:' + e.recipe.sig.builder : (e.recipe.sig.helper || e.recipe.sig.kind))
+      : '?';
+    const n = !e.recipe.n ? 'none'
+      : e.recipe.n.alr ? 'alr builder'
+        : e.recipe.n.cls ? `${e.recipe.n.cls}.${e.recipe.n.method}(${e.recipe.n.arg})` : 'none';
     console.log(`\n  ${e.key}`);
     console.log(`    sig ${sig}  n ${n}`);
     console.log(`    probes ${e.probes}  hits ${e.hits}  stale ${!!e.stale}`);
@@ -119,6 +123,16 @@ async function cmdDiscover() {
     const how = h.a === undefined ? `${h.name}(s)` : `${h.name}(${h.a},${h.b},s)`;
     console.log(`  ${how}`);
   }
+
+  const alr = require('./engine/alr.js').discover(d.player);
+  console.log("\n--- player's own builder  [solve s + n in one call] ---");
+  if (alr) {
+    console.log(`  ${alr.name}  (found via .set("alr","yes"), serializer ${alr.serializer})`);
+    console.log("  tried first: it is YouTube's own code path, not our reading of it");
+  } else {
+    console.log('  (none found - the marker or the URL object changed; search will carry on)');
+  }
+
   console.log('\nDiscovery is behavioural: names above may change on any build.');
 }
 
@@ -288,7 +302,11 @@ async function cmdForget() {
     if (eng.ok) {
       console.log('build ts   :', eng.build.timestamp);
       console.log('url class  :', eng.build.urlClass);
-      console.log('transform  :', eng.build.transform, eng.winner && eng.winner.label && eng.winner.label.startsWith('dispatch') ? '(dispatcher)' : '');
+      const viaAlr = !!(eng.winner && String(eng.winner.label).startsWith('alr:'));
+      console.log('transform  :', viaAlr
+        ? `${eng.build.alr}  (the player's own builder)`
+        : eng.build.transform + (eng.winner && eng.winner.label && eng.winner.label.startsWith('dispatch') ? ' (dispatcher)' : ''));
+      if (eng.build.alr && !viaAlr) console.log('alr builder:', eng.build.alr, '(found, not needed)');
       console.log('source     :', eng.reused
         ? `remembered recipe (${eng.recalled}) - nothing to search`
         : eng.recalled

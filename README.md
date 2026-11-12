@@ -90,6 +90,21 @@ You never copy `base.js` by hand:
 
 The build hash and update date are kept in `state/player.json`.
 
+## Two ways to the same answer
+
+The solver tries YouTube's own code path first, then falls back to reading the
+player too — both are kept, because they fail differently:
+
+1. **The player's own builder** (`engine/alr.js`). Every build contains a
+   function that wraps a URL and calls `.set("alr","yes")`. We find it by that
+   marker, hand it the cipher, and read the answer back. No helper names, no
+   opcodes — a rename cannot break it.
+2. **The search** (`engine/learn.js`). If that builder is missing or wrong, the
+   engine reads the transform out of the player, plans candidate after
+   candidate, and keeps the first one googlevideo answers with `206`.
+
+Either way the result is proven with a real request before you see a link.
+
 ## Files
 
 | File | What it is |

@@ -62,6 +62,7 @@ function applyNTuple(tuple, classesByName, url) {
 }
 
 function describeNTuple(t) {
+  if (t && t.alr) return 'alr builder';
   return t && t.cls ? `${t.cls}.${t.method}(${t.arg == null ? '' : t.arg})/[ctor ${t.ctorArgs}]` : 'n unchanged';
 }
 
