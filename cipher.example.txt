@@ -1,0 +1,5 @@
+# Paste the signatureCipher value from DevTools below.
+# ONE line only, and delete these comment lines first.
+#
+#   - it starts with   s=
+#   - it contains   &url=https%3A%2F%2F ... googlevideo.com

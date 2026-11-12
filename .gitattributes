@@ -1,0 +1,11 @@
+# Normalise text so Windows and Linux clones produce identical commits.
+* text=auto
+
+# Batch files must stay CRLF or cmd.exe misreads them.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# Generated / binary
+*.png binary
+*.jpg binary
+*.ico binary
