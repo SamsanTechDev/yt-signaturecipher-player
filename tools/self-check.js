@@ -84,6 +84,56 @@ if (!fs.existsSync(base) || fs.statSync(base).size < 500 * 1024) {
 }
 
 // ---------------------------------------------------------------------------
+// 2b. alr discovery, offline: a synthetic player, so this runs in CI where the
+//     real 2.5 MB base.js is (correctly) not committed.
+// ---------------------------------------------------------------------------
+console.log('\n[alr discovery, offline]');
+{
+  const alrMod = require('../engine/alr.js');
+
+  // A fake URL object: get/set plus one method that returns a URL string,
+  // exactly the shape findSerializer() is looking for.
+  function FakeUrl(u) { this.p = new URL(u); }
+  FakeUrl.prototype.get = function (k) { return this.p.searchParams.get(k); };
+  FakeUrl.prototype.set = function (k, v) {
+    this.p.searchParams.set(k, k === 's' ? v + 'ZZ' : v);
+    return this;
+  };
+  FakeUrl.prototype.Ue = function () { return this.p.toString(); };
+
+  function maker(a, b, c) {
+    const x = new FakeUrl(a);
+    x.set('alr', 'yes');
+    if (c) x.set(b, c);
+    return x;
+  }
+  // Decoy: same marker, but the object is not a URL (no serializer).
+  function decoy() { return { get: () => 'nope', set: () => {} }; }
+
+  const source = 'var maker=function(a,b,c){x=new FakeUrl(a);x.set("alr","yes");'
+    + 'c&&x.set(b,c);return x};'
+    + 'var decoy=function(){y={};y.set("alr","yes");return y};';
+  const player = { source, resolve: (n) => ({ maker, decoy })[n] };
+
+  const d = alrMod.discover(player);
+  check('builder found by the marker', !!d, d ? 'winner ' + d.name : 'none');
+  check('serializer detected', !!d && d.serializer === 'Ue', d ? d.serializer : '-');
+  check('solves s', !!d && d.sig('abc') === 'abcZZ', d ? d.sig('abc') : '-');
+  check('solves n', !!d && d.n('n123') === 'n123', d ? d.n('n123') : '-');
+
+  // Same marker, wrong object shape: must not be mistaken for the builder.
+  const onlyDecoy = alrMod.discover({
+    source: 'var decoy=function(){y={};y.set("alr","yes");return y};',
+    resolve: () => decoy,
+  });
+  check('non-URL marker hit rejected', onlyDecoy === null,
+    onlyDecoy ? 'accepted ' + onlyDecoy.name : 'none');
+
+  const none = alrMod.discover({ source: 'var q=1;', resolve: () => null });
+  check('no marker -> null (search takes over)', none === null);
+}
+
+// ---------------------------------------------------------------------------
 // 3. live player + proxy (opt-in, needs a valid cipher.txt)
 // ---------------------------------------------------------------------------
 const live = process.argv.includes('--live');

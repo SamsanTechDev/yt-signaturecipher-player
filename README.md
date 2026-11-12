@@ -75,6 +75,10 @@ node tools/self-check.js          # health check
 
 Requires **Node.js 18+** (no packages to install).
 
+Every push runs the same offline checks on GitHub Actions (Node 20, 22 and 24),
+so `main` is always green. Version history is in `CHANGELOG.md`; releases are
+tagged `v1.x.y`.
+
 ## The player is fetched and checked automatically
 
 You never copy `base.js` by hand:
@@ -119,6 +123,7 @@ Either way the result is proven with a real request before you see a link.
 | `build-play.js` | Generates `play.html` |
 | `live.html` | Live progress page (`/live`) |
 | `HOW-IT-WORKS.md` | Full technical walkthrough |
+| `CHANGELOG.md` | Version history |
 
 ## Troubleshooting
 
